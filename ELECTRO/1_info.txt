@@ -1,0 +1,5 @@
+Electro
+Data: 21 octombrie 1998
+Tip: joc
+
+Fisierul principal: ELECTRO.PAS
