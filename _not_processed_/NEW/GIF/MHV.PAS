@@ -1,0 +1,2897 @@
+{$A+,B-,D+,E+,F+,G+,I-,L+,N-,O+,P+,Q+,R+,S+,T-,V+,X+}
+{$M 16384,0,0}
+program mhviewer;
+uses mhmatem,mhstring,textgraf,mhgraf,mtast,mhdisk,mhmem,mhimg,mhpal,dos,tpkey;
+const copyright: string[80]='MhViewer v1.0 2000 - Copyright (c) MSoft - Mihai Marica';
+      crc: word=$6971;
+      fnecunoscut=0;
+      fmvb=1;
+      fmhb=2;
+      fmhp=3;
+      fmcp=4;
+      fmcb=5;
+      fcel=6;
+      fpcx=7;
+      fbmp=8;
+      fico=9;
+      fgif=10;
+      ftga=11;
+      tesc: byte=27;
+      tenter: byte=13;
+      tf1: byte=59;
+      tf10: byte=68;
+      tsus: byte=72;
+      tjos: byte=80;
+      tpgup: byte=73;
+      tpgdn: byte=81;
+      tstanga: byte=75;
+      tdreapta: byte=77;
+      thome: byte=71;
+      tend: byte=79;
+      tbsles: byte=92;
+      tbkspace: byte=8;
+type finfo=record
+            nume: string[8];
+            ext: string[3];
+            compresie,marime: longint;
+            scan,interlace,paleta,compresat: boolean;
+            attr,sx,sy,bpp: word;
+            format: byte;
+           end;
+     mbuf=array[1..64000] of byte;
+const maxfiles=1000;
+var a,b,c: ^ecran;
+    numeini,dirini: string;
+    s: string;
+    tasta: record
+            citita,zero: boolean;
+            cod: byte;
+           end;
+    up,ud,rezultat: integer;
+    b1,b2,b3: byte;
+    ta,tb,tc: ^ecran;
+    mbt,mbimg: membuf256;
+    sortare: 0..3;
+    dp,ncspeed,cspeed: integer;
+    size: longint;
+    f: file;
+    pozv,pcopy: integer;
+    pal: mvpal;
+    s1,s2,s3,curentvdir,sttemp,curentdrivedir: string;
+    panou: array[1..maxfiles] of finfo;
+    nrimg,nrs,nrf,nrd,nre,ppan: integer;
+    formatgasit,iesire,anuleaza,afis,dir2p,speciala,apasata: boolean;
+    x,y: longint;
+    epoz,dpoz: integer;
+    st,cdir,strtemp: string;
+    pozdir,nom: boolean;
+    curentdir: string;
+    dirst: dirstr;
+    namest: namestr;
+    extst: extstr;
+    drive: array[1..26] of boolean;
+    oldexit: pointer;
+    crf,sx,sy,px,py: word;
+    bt: byte;
+    antet: array[1..4] of char;
+    w: word;
+    buf: array[1..320] of char;
+    format: byte;
+    wd: word;
+    count,contor,cv: longint;
+    loop,aux: byte;
+    rep: integer;
+    nuecitit: boolean;
+    minibuf: ^mbuf;
+    pozbuf: longint;
+    compresat,paleta,interlace: boolean;
+    bpp: word;
+    compresie: longint;
+    scanez,elimin,sunet: boolean;
+
+function readbyte: byte;
+begin
+ pozbuf:=pozbuf+1;
+ if pozbuf>sizeof(minibuf^) then
+ begin
+  pozbuf:=1;
+  blockread(f,minibuf^,sizeof(minibuf^),w);
+  rezultat:=ioresult;
+ end;
+ readbyte:=minibuf^[pozbuf];
+end;
+
+procedure gasescformat;
+begin
+ formatgasit:=false;
+ format:=fnecunoscut;
+ compresat:=false;
+ paleta:=false;
+ interlace:=false;
+ rezultat:=ioresult;
+ {MVB}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,antet,4,w);
+  rezultat:=ioresult;
+  if antet='MVB6' then
+  begin
+   format:=fmvb;
+   formatgasit:=true;
+   seek(f,4);
+   rezultat:=ioresult;
+   blockread(f,buf,1,w);
+   rezultat:=ioresult;
+   if ord(buf[1])<255 then
+   begin
+    sx:=ord(buf[1]);
+    blockread(f,buf,1,w);
+    rezultat:=ioresult;
+    sy:=ord(buf[1]);
+   end else
+   begin
+    blockread(f,buf,1,w);
+    rezultat:=ioresult;
+    sx:=ord(buf[1])+255;
+    blockread(f,buf,1,w);
+    rezultat:=ioresult;
+    sy:=ord(buf[1]);
+   end;
+   bpp:=8;
+  end;
+ end;
+
+ {MHB}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,antet,4,w);
+  rezultat:=ioresult;
+  if antet='MHB6' then
+  begin
+   format:=fmhb;
+   formatgasit:=true;
+   seek(f,4);
+   rezultat:=ioresult;
+   blockread(f,buf,4,w);
+   rezultat:=ioresult;
+   move(buf[1],sx,2);
+   move(buf[3],sy,2);
+   bpp:=8;
+  end;
+ end;
+
+ {MHP}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,antet,4,w);
+  rezultat:=ioresult;
+  if antet='MHP6' then
+  begin
+   format:=fmhp;
+   formatgasit:=true;
+   seek(f,4);
+   rezultat:=ioresult;
+   blockread(f,buf,4,w);
+   rezultat:=ioresult;
+   move(buf[1],sx,2);
+   move(buf[3],sy,2);
+   paleta:=true;
+   bpp:=8;
+  end;
+ end;
+
+ {MCB}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,antet,4,w);
+  rezultat:=ioresult;
+  if antet='MCB6' then
+  begin
+   format:=fmcb;
+   formatgasit:=true;
+   seek(f,4);
+   rezultat:=ioresult;
+   blockread(f,buf,4,w);
+   rezultat:=ioresult;
+   move(buf[1],sx,2);
+   move(buf[3],sy,2);
+   bpp:=8;
+   compresie:=0;
+   compresat:=true;
+  end;
+ end;
+
+ {MCP}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,antet,4,w);
+  rezultat:=ioresult;
+  if antet='MCP6' then
+  begin
+   format:=fmcp;
+   formatgasit:=true;
+   seek(f,4);
+   rezultat:=ioresult;
+   blockread(f,buf,4,w);
+   rezultat:=ioresult;
+   move(buf[1],sx,2);
+   move(buf[3],sy,2);
+   paleta:=true;
+   bpp:=8;
+   compresie:=0;
+   compresat:=true;
+  end;
+ end;
+
+ {CEL}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,buf,32,w);
+  rezultat:=ioresult;
+  if(buf[1]=#25)and(buf[2]=#145)and(buf[11]=#8)and(buf[12]=#0) then
+  begin
+   format:=fcel;
+   formatgasit:=true;
+   seek(f,2);
+   rezultat:=ioresult;
+   blockread(f,buf,4,w);
+   rezultat:=ioresult;
+   move(buf[1],sx,2);
+   move(buf[3],sy,2);
+   paleta:=true;
+   bpp:=8;
+  end;
+ end;
+
+ {PCX}
+ if not formatgasit then
+ begin
+  seek(f,2);
+  rezultat:=ioresult;
+  blockread(f,buf,2,w);
+  rezultat:=ioresult;
+  if(buf[1]=#1)and(buf[2]=#8) then
+  begin
+   format:=fpcx;
+   formatgasit:=true;
+   seek(f,2);
+   rezultat:=ioresult;
+   blockread(f,buf,1,w);
+   rezultat:=ioresult;
+   compresie:=byte(buf[1]);
+   seek(f,3);
+   rezultat:=ioresult;
+   blockread(f,buf,1,w);
+   rezultat:=ioresult;
+   bpp:=byte(buf[1]);
+   seek(f,4);
+   rezultat:=ioresult;
+   blockread(f,px,2,w);
+   rezultat:=ioresult;
+   blockread(f,py,2,w);
+   rezultat:=ioresult;
+   blockread(f,sx,2,w);
+   rezultat:=ioresult;
+   blockread(f,sy,2,w);
+   rezultat:=ioresult;
+   if (sx-px>=0)and(sy-py>=0) then
+   begin
+   sx:=sx-px+1;
+   sy:=sy-py+1;
+   end else
+   begin
+    sx:=0;
+    sy:=0;
+   end;
+   seek(f,1);
+   rezultat:=ioresult;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   if (bt>=3)and(bpp<=8) then paleta:=true;
+   if compresie<>0 then compresat:=true;
+  end;
+ end;
+
+ {BMP}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,antet,2,w);
+  rezultat:=ioresult;
+  move(antet,wd,2);
+  if (wd=19778{'BM'}) then
+  begin
+   format:=fbmp;
+   formatgasit:=true;
+   seek(f,18);
+   rezultat:=ioresult;
+   blockread(f,sx,2,w);
+   rezultat:=ioresult;
+   seek(f,22);
+   rezultat:=ioresult;
+   blockread(f,sy,2,w);
+   rezultat:=ioresult;
+   seek(f,28);
+   rezultat:=ioresult;
+   blockread(f,buf,2,w);
+   rezultat:=ioresult;
+   move(buf,bpp,2);
+   blockread(f,buf,4,w);
+   rezultat:=ioresult;
+   move(buf[1],compresie,4);
+   if compresie<>0 then compresat:=true;
+   if bpp<=8 then paleta:=true;
+  end;
+ end;
+
+ {ICO}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,buf,4,w);
+  rezultat:=ioresult;
+  move(buf,s[1],4);
+  s[0]:=#4;
+  if s=#0#0#1#0 then
+  begin
+   format:=fico;
+   formatgasit:=true;
+   seek(f,36);
+   rezultat:=ioresult;
+   blockread(f,buf,1,w);
+   rezultat:=ioresult;
+   bpp:=ord(buf[1]);
+   if buf[1]=#0 then bpp:=4;
+   seek(f,6);
+   rezultat:=ioresult;
+   blockread(f,buf,2,w);
+   rezultat:=ioresult;
+   sx:=byte(buf[1]);
+   sy:=byte(buf[2]);
+   if bpp<=8 then paleta:=true;
+  end;
+ end;
+
+ {GIF}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,buf,6,w);
+  rezultat:=ioresult;
+  move(buf,s[1],6);
+  s[0]:=#6;
+  if (s='GIF87a')or(s='GIF89a') then
+  begin
+   formatgasit:=true;
+   format:=fgif;
+   seek(f,10);
+   rezultat:=ioresult;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   bpp:=bt and 7+1;
+   if (bt and $80=$80)and(bpp<=8) then paleta:=true;
+   seek(f,18);
+   rezultat:=ioresult;
+   if paleta then
+   seek(f,18+(1 shl bpp)*3);
+   rezultat:=ioresult;
+   blockread(f,sx,2,w);
+   rezultat:=ioresult;
+   blockread(f,sy,2,w);
+   rezultat:=ioresult;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   if (bt and $40)=$40 then interlace:=true;
+   compresie:=0;
+   compresat:=true;
+  end;
+ end;
+
+ {TGA}
+ if not formatgasit then
+ begin
+  seek(f,0);
+  rezultat:=ioresult;
+  blockread(f,antet,2,w);
+  rezultat:=ioresult;
+  seek(f,6);
+  rezultat:=ioresult;
+  blockread(f,antet[3],2,w);
+  rezultat:=ioresult;
+  if (antet[1]=#0)and(antet[2]=#1)and(antet[3]=#1)and(antet[4]=#24) then
+  begin
+   format:=ftga;
+   formatgasit:=true;
+   seek(f,2);
+   rezultat:=ioresult;
+   blockread(f,antet,1,w);
+   rezultat:=ioresult;
+   compresie:=byte(antet[1]);
+   if compresie<>1 then compresat:=true;
+   seek(f,12);
+   rezultat:=ioresult;
+   blockread(f,buf,4,w);
+   rezultat:=ioresult;
+   move(buf[1],sx,2);
+   move(buf[3],sy,2);
+   seek(f,16);
+   rezultat:=ioresult;
+   blockread(f,antet,1,w);
+   rezultat:=ioresult;
+   bpp:=byte(antet[1]);
+   paleta:=true;
+  end;
+ end;
+end;
+
+procedure incarcini;
+var f: file;
+begin
+ scanez:=false;
+ elimin:=false;
+ sunet:=false;
+ rezultat:=ioresult;
+ assign(f,numeini);
+ rezultat:=ioresult;
+ reset(f,1);
+ rezultat:=ioresult;
+ if rezultat<>0 then exit;
+ blockread(f,buf,3,w);
+ rezultat:=ioresult;
+ close(f);
+ rezultat:=ioresult;
+ if buf[1]<>#0 then scanez:=true;
+ if buf[2]<>#0 then elimin:=true;
+ if buf[3]<>#0 then sunet:=true;
+end;
+
+procedure salvezini;
+var f: file;
+begin
+ fillchar(buf,3,0);
+ filemode:=2;
+ rezultat:=ioresult;
+ rezultat:=ioresult;
+ assign(f,numeini);
+ rezultat:=ioresult;
+ rewrite(f,1);
+ rezultat:=ioresult;
+ if rezultat<>0 then exit;
+ if scanez then buf[1]:=#1;
+ if elimin then buf[2]:=#1;
+ if sunet then buf[3]:=#1;
+ blockwrite(f,buf,3,w);
+ rezultat:=ioresult;
+ close(f);
+ rezultat:=ioresult;
+ filemode:=0;
+end;
+
+procedure citesctasta;
+begin
+ if tasta.citita then exit;
+ tasta.zero:=false;
+ if keypressed then
+ begin
+  tasta.cod:=ord(readkey);
+  if tasta.cod=0 then
+  begin
+   tasta.cod:=ord(readkey);
+   tasta.zero:=true;
+  end;
+  tasta.citita:=true;
+ end;
+end;
+
+procedure elimintasta;
+begin
+ tasta.citita:=false;
+end;
+
+function conv(w: word): string;
+const
+ hexChars: array [0..$F] of Char =
+   '0123456789ABCDEF';
+begin
+ conv[1]:=hexChars[Hi(w) shr 4];
+ conv[2]:=hexChars[Hi(w) and $F];
+ conv[3]:=hexChars[Lo(w) shr 4];
+ conv[4]:=hexChars[Lo(w) and $F];
+ conv[0]:=#4;
+end;
+
+procedure mischome;
+begin
+ dpoz:=0;
+ epoz:=1;
+end;
+
+procedure miscend;
+begin
+ if nre>=dp then
+ begin
+  dpoz:=nre-dp;
+  epoz:=dp;
+ end else
+ begin
+  dpoz:=0;
+  epoz:=nre;
+ end;
+end;
+
+procedure miscsus;
+begin
+ epoz:=epoz-1;
+ if epoz<1 then
+ if dpoz<=0 then
+ begin
+  dpoz:=0;
+  epoz:=1;
+ end else
+ begin
+  dpoz:=dpoz-1;
+  epoz:=1;
+ end;
+end;
+
+procedure miscjos;
+begin
+ if nre<dp then
+ begin
+  if epoz<nre then epoz:=epoz+1;
+ end else
+ begin
+  if epoz<dp then epoz:=epoz+1 else
+  if dpoz<nre-dp then
+  begin
+   epoz:=dp;
+   dpoz:=dpoz+1;
+  end;
+ end;
+end;
+
+procedure miscpgdn;
+begin
+ for x:=1 to dp do miscjos;
+end;
+
+procedure miscpgup;
+begin
+ for x:=1 to dp do miscsus;
+end;
+
+procedure quicksortnume(l,r: integer);
+procedure sort(l,r: integer);
+var i,j: integer;
+    x,y: finfo;
+begin
+ i:=l;j:=r;x:=panou[(l+r) div 2];
+ repeat
+  while panou[i].nume<x.nume do i:=i+1;
+  while x.nume<panou[j].nume do j:=j-1;
+  if i<=j then
+  begin
+   y:=panou[i];panou[i]:=panou[j];panou[j]:=y;
+   i:=i+1;j:=j-1;
+  end;
+ until i>j;
+ if l<j then sort(l,j);
+ if i<r then sort(i,r);
+end;
+begin
+ sort(l,r);
+end;
+
+procedure quicksortextensie(l,r: integer);
+procedure sort(l,r: integer);
+var i,j: integer;
+    x,y: finfo;
+begin
+ i:=l;j:=r;x:=panou[(l+r) div 2];
+ repeat
+  while panou[i].ext<x.ext do i:=i+1;
+  while x.ext<panou[j].ext do j:=j-1;
+  if i<=j then
+  begin
+   y:=panou[i];panou[i]:=panou[j];panou[j]:=y;
+   i:=i+1;j:=j-1;
+  end;
+ until i>j;
+ if l<j then sort(l,j);
+ if i<r then sort(i,r);
+end;
+begin
+ sort(l,r);
+end;
+
+procedure quicksortmarime(l,r: integer);
+procedure sort(l,r: integer);
+var i,j: integer;
+    x,y: finfo;
+begin
+ i:=l;j:=r;x:=panou[(l+r) div 2];
+ repeat
+  while panou[i].marime<x.marime do i:=i+1;
+  while x.marime<panou[j].marime do j:=j-1;
+  if i<=j then
+  begin
+   y:=panou[i];panou[i]:=panou[j];panou[j]:=y;
+   i:=i+1;j:=j-1;
+  end;
+ until i>j;
+ if l<j then sort(l,j);
+ if i<r then sort(i,r);
+end;
+begin
+ sort(l,r);
+end;
+
+procedure scandir;
+var sr: searchrec;
+    dirn: dirstr;
+    namen: namestr;
+    extn: extstr;
+    incep,numar,x,y,z,t: integer;
+    numev: string;
+    bp1,bp2: ^byte;
+begin
+ nrimg:=0;
+ nrs:=0;
+ filemode:=0;
+ getdir(0,curentdrivedir);
+ rezultat:=ioresult;
+ fillchar(panou,sizeof(panou),0);
+ nrf:=0;nrd:=0;nre:=0;dir2p:=false;ppan:=0;
+ findfirst('*.*',$3F-volumeid,sr);
+ while (doserror=0)and(ppan<maxfiles) do
+ begin
+  if (sr.name<>'.')and((sr.attr and directory)<>0) then
+  begin
+   nrd:=nrd+1;
+   ppan:=ppan+1;
+   extn:='';
+   if sr.name='..' then
+   begin
+    panou[ppan].nume:='..';
+    panou[ppan].attr:=sr.attr;
+    dir2p:=true;
+   end else
+   begin
+    fsplit(sr.name,dirn,namen,extn);
+    panou[ppan].nume:=upstring(namen);
+    if extn[1]='.' then
+    begin
+     for x:=1 to 3 do
+     extn[x]:=extn[x+1];
+     extn[0]:=chr(ord(extn[0])-1);
+    end;
+    panou[ppan].ext:=upstring(extn);
+    panou[ppan].attr:=sr.attr;
+   end;
+  end;
+  findnext(sr);
+ end;
+ findfirst('*.*',$3F-volumeid,sr);
+ while (doserror=0)and(ppan<maxfiles) do
+ begin
+  if (sr.attr and directory)=0 then
+  begin
+   ppan:=ppan+1;
+   nrf:=nrf+1;
+   panou[ppan].marime:=sr.size;
+   extn:='';
+   fsplit(sr.name,dirn,namen,extn);
+   panou[ppan].nume:=downstring(namen);
+   if extn[1]='.' then
+   begin
+    for x:=1 to 3 do
+    extn[x]:=extn[x+1];
+    extn[0]:=chr(ord(extn[0])-1);
+   end;
+   panou[ppan].ext:=downstring(extn);
+   panou[ppan].attr:=sr.attr;
+  end;
+  findnext(sr);
+ end;
+ nre:=nrd+nrf;
+ {Sortare 0=nume, 1=extensie, 2=marime, 3=nesortate}
+ if sortare=0 then {sortare dupa nume si extensie}
+ if nre>0 then
+ begin
+  if nrd>0 then
+  begin
+   if (panou[1].nume='..') then
+   begin
+    if nrd>1 then
+    quicksortnume(2,nrd);
+   end else
+   quicksortnume(1,nrd);
+   numar:=0;
+   incep:=-1;
+   numev:='';
+   if panou[1].nume<>'..' then
+   for x:=1 to nrd do
+   begin
+    if numev=panou[x].nume then
+    begin
+     if incep<0 then incep:=x-1;
+     numar:=numar+1;
+    end else
+    begin
+     if numar>0 then quicksortextensie(incep,incep+numar);
+     numar:=0;
+     incep:=-1;
+    end;
+    numev:=panou[x].nume;
+   end else
+   for x:=2 to nrd do
+   begin
+    if numev=panou[x].nume then
+    begin
+     if incep<0 then incep:=x-1;
+     numar:=numar+1;
+    end else
+    begin
+     if numar>0 then quicksortextensie(incep,incep+numar);
+     numar:=0;
+     incep:=-1;
+    end;
+    numev:=panou[x].nume;
+   end;
+  end;
+  if nrf>0 then
+  begin
+   quicksortnume(nrd+1,nre);
+  end;
+ end;
+ z:=nrd;
+ if scanez then
+ if nrf>0 then
+ while z<=nrf+nrd do
+ begin
+  z:=z+1;
+  begin
+   rezultat:=ioresult;
+   assign(f,upstring(fullstring(panou[z].nume,panou[z].ext)));
+   rezultat:=ioresult;
+   reset(f,1);
+   rezultat:=ioresult;
+   if rezultat=0 then
+   begin
+    rezultat:=ioresult;
+    gasescformat;
+    close(f);
+    rezultat:=ioresult;
+    panou[z].scan:=true;
+    panou[z].paleta:=paleta;
+    panou[z].interlace:=interlace;
+    panou[z].compresat:=compresat;
+    panou[z].compresie:=compresie;
+    panou[z].sx:=sx;
+    panou[z].sy:=sy;
+    panou[z].bpp:=bpp;
+    panou[z].format:=format;
+    if format<>fnecunoscut then nrimg:=nrimg+1;
+    nrs:=nrs+1;
+    if elimin then
+    begin
+     if format=fnecunoscut then
+     begin
+      for y:=z+1 to nrd+nrf do
+      panou[y-1]:=panou[y];
+      nrf:=nrf-1;
+      z:=z-1;
+      nre:=nre-1;
+      nrs:=nrs-1;
+     end;
+    end;
+   end;
+   elimintasta;
+   citesctasta;
+   if tasta.citita and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    elimintasta;
+    break;
+   end;
+  end;
+ end;
+end;
+
+procedure initbtext;
+begin
+ nom:=false;
+ tb:=ptr(mhmemaloc(sizeof(tb^)),0);
+ if eraloc<>0 then nom:=true;
+ tc:=ptr(mhmemaloc(sizeof(tc^)),0);
+ if eraloc<>eranimic then nom:=true;
+end;
+
+procedure initbgraf1;
+begin
+ nom:=false;
+ b:=ptr(mhmemaloc(64000),0);
+ if eraloc<>0 then
+ begin
+  nom:=true;
+  mhmemdealoc(seg(b^));
+ end;
+end;
+
+procedure initbgraf2;
+begin
+ nom:=false;
+ c:=ptr(mhmemaloc(64000),0);
+ if eraloc<>0 then
+ begin
+  nom:=true;
+  mhmemdealoc(seg(c^));
+ end;
+ mbt.adrese[1].p:=seg(c^);
+ mbt.rx:=320;
+ mbt.ry:=200;
+ mbt.vx1:=0;
+ mbt.vx2:=319;
+ mbt.vy1:=0;
+ mbt.vy2:=199;
+ mbt.adrese[1].alocat:=true;
+ mbt.alocat:=true;
+ mbt.tip:=ecrmem256;
+ minibuf:=ptr(seg(c^),0);
+end;
+
+procedure gatabtext;
+begin
+ mhmemdealoc(seg(tb^));
+ mhmemdealoc(seg(tc^));
+end;
+
+procedure gatabgraf1;
+begin
+ mhmemdealoc(seg(b^));
+end;
+
+procedure gatabgraf2;
+begin
+ mhmemdealoc(seg(c^));
+end;
+
+procedure incarcmvb;
+begin
+ anuleaza:=false;
+ rezultat:=ioresult;
+ seek(f,8);
+ rezultat:=ioresult;
+ pal:=normpal;
+ setpal(pal);
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ for x:=0 to sx-1 do
+ begin
+  blockread(f,buf,sy,w);
+  rezultat:=ioresult;
+  for y:=0 to sy-1 do
+  b^[y,x]:=ord(buf[y+1]);
+  if x mod ncspeed=0 then
+  begin
+   a^:=b^;
+   elimintasta;
+   citesctasta;
+   if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    elimintasta;
+    anuleaza:=true;
+    exit;
+   end;
+  end;
+ end;
+ a^:=b^;
+end;
+
+procedure incarcmhb;
+begin
+ anuleaza:=false;
+ seek(f,8);
+ rezultat:=ioresult;
+ pal:=normpal1;
+ setpal(pal);
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ for y:=0 to sy-1 do
+ begin
+  blockread(f,b^[y,0],sx,w);
+  rezultat:=ioresult;
+  if y mod ncspeed=0 then
+  begin
+   a^:=b^;
+   elimintasta;
+   citesctasta;
+   if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    elimintasta;
+    anuleaza:=true;
+    exit;
+   end;
+  end;
+ end;
+ a^:=b^;
+end;
+
+procedure incarcmhp;
+begin
+ anuleaza:=false;
+ seek(f,8);
+ rezultat:=ioresult;
+ blockread(f,pal,768,w);
+ rezultat:=ioresult;
+ setpal(pal);
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ for y:=0 to sy-1 do
+ begin
+  blockread(f,b^[y,0],sx,w);
+  rezultat:=ioresult;
+  if y mod ncspeed=0 then
+  begin
+   a^:=b^;
+   elimintasta;
+   citesctasta;
+   if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    elimintasta;
+    anuleaza:=true;
+    exit;
+   end;
+  end;
+ end;
+ a^:=b^;
+end;
+
+procedure incarcmcb;
+var rest: integer;
+    pot,incp: integer;
+    miscjos: boolean;
+
+begin
+ anuleaza:=false;
+ seek(f,0);
+ rezultat:=ioresult;
+ size:=filesize(f);
+ rezultat:=ioresult;
+ initbgraf2;
+ if nom then exit;
+ pozbuf:=sizeof(minibuf^);
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ pal:=normpal1;
+ setpal(pal);
+ seek(f,8);
+ rezultat:=ioresult;
+ count:=1;
+ contor:=0;
+ while (contor<=sx*sy)and(count<=size-776) do
+ begin
+  cv:=trunc(contor/cspeed);
+  rep:=readbyte;
+  count:=count+1;
+  aux:=readbyte;
+  count:=count+1;
+  x:=contor mod sx-1;
+  y:=trunc(contor/sx);
+  incp:=x;
+  repeat
+   miscjos:=false;
+   pot:=rep;
+   if pot+incp>=sx then
+   begin
+    pot:=sx-incp;
+    miscjos:=true;
+   end;
+   loriz(b,incp,incp+pot-1,y,aux);
+   contor:=contor+pot;
+   rep:=rep-pot;
+   if miscjos then
+   begin
+    y:=y+1;
+    incp:=0;
+   end;
+  until rep=0;
+  if trunc(contor/cspeed)<>cv then
+  begin
+   a^:=b^;
+   elimintasta;
+   citesctasta;
+   if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    a^:=b^;
+    elimintasta;
+    anuleaza:=true;
+    gatabgraf2;
+    exit;
+   end;
+  end;
+ end;
+ gatabgraf2;
+ a^:=b^;
+end;
+
+procedure incarcmcp;
+var rest: integer;
+    pot,incp: integer;
+    miscjos: boolean;
+begin
+ anuleaza:=false;
+ seek(f,0);
+ rezultat:=ioresult;
+ size:=filesize(f);
+ rezultat:=ioresult;
+ initbgraf2;
+ if nom then exit;
+ pozbuf:=sizeof(minibuf^);
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ seek(f,8);
+ rezultat:=ioresult;
+ blockread(f,pal,768,w);
+ rezultat:=ioresult;
+ setpal(pal);
+ count:=1;
+ contor:=0;
+ while (contor<=sx*sy)and(count<=size-776) do
+ begin
+  cv:=trunc(contor/cspeed);
+  rep:=readbyte;
+  count:=count+1;
+  aux:=readbyte;
+  count:=count+1;
+  x:=contor mod sx-1;
+  y:=trunc(contor/sx);
+  incp:=x;
+  repeat
+   miscjos:=false;
+   pot:=rep;
+   if pot+incp>=sx then
+   begin
+    pot:=sx-incp;
+    miscjos:=true;
+   end;
+   loriz(b,incp,incp+pot-1,y,aux);
+   contor:=contor+pot;
+   rep:=rep-pot;
+   if miscjos then
+   begin
+    y:=y+1;
+    incp:=0;
+   end;
+  until rep=0;
+  if trunc(contor/cspeed)<>cv then
+  begin
+   a^:=b^;
+   elimintasta;
+   citesctasta;
+   if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    a^:=b^;
+    anuleaza:=true;
+    elimintasta;
+    gatabgraf2;
+    exit;
+   end;
+  end;
+ end;
+ gatabgraf2;
+ a^:=b^;
+end;
+
+procedure incarccel;
+begin
+ anuleaza:=false;
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ seek(f,32);
+ rezultat:=ioresult;
+ blockread(f,pal,768,w);
+ rezultat:=ioresult;
+ setpal(pal);
+ for y:=0 to sy-1 do
+ begin
+  blockread(f,buf,sx,w);
+  rezultat:=ioresult;
+  move(buf,b^[y,0],sx);
+  if y mod ncspeed=0 then
+  begin
+   a^:=b^;
+   elimintasta;
+   citesctasta;
+   if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    a^:=b^;
+    elimintasta;
+    anuleaza:=true;
+    exit;
+   end;
+  end;
+ end;
+ a^:=b^;
+end;
+
+procedure incarcpcx;
+var rest: integer;
+    fsize: longint;
+    pot,incp: integer;
+    miscjos: boolean;
+begin
+ anuleaza:=false;
+ seek(f,0);
+ rezultat:=ioresult;
+ size:=filesize(f);
+ rezultat:=ioresult;
+ initbgraf2;
+ if nom then exit;
+ pozbuf:=sizeof(minibuf^);
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ fsize:=size;
+ seek(f,size-768);
+ rezultat:=ioresult;
+ blockread(f,pal,768,w);
+ rezultat:=ioresult;
+ for x:=0 to 255 do
+ for y:=1 to 3 do
+ pal[x][y]:=pal[x][y] div 4;
+ setpal(pal);
+ seek(f,128);
+ rezultat:=ioresult;
+ count:=1;
+ contor:=0;
+ while (contor<=sx*sy)and(count<=fsize) do
+ begin
+  cv:=trunc(contor/cspeed);
+  x:=contor mod sx;
+  y:=trunc(contor/sx);
+  aux:=readbyte;
+  if aux>$C0 then
+  begin
+   rep:=aux-$C0;
+   count:=count+1;
+   aux:=readbyte;
+   count:=count+1;
+   x:=contor mod sx;
+   y:=trunc(contor/sx);
+   incp:=x;
+   repeat
+    miscjos:=false;
+    pot:=rep;
+    if pot+incp>=sx then
+    begin
+     pot:=sx-incp;
+     miscjos:=true;
+    end;
+    loriz(b,incp,incp+pot-1,y,aux);
+    contor:=contor+pot;
+    rep:=rep-pot;
+    if miscjos then
+    begin
+     y:=y+1;
+     incp:=0;
+    end;
+   until rep=0;
+  end else
+  begin
+   if(x>=0)and(y>=0)and(x<sx)and(y<sy) then
+   b^[y,x]:=aux;
+   count:=count+1;
+   contor:=contor+1;
+  end;
+  if trunc(contor/cspeed)<>cv then
+  begin
+   a^:=b^;
+   elimintasta;
+   citesctasta;
+   if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    a^:=b^;
+    elimintasta;
+    anuleaza:=true;
+    gatabgraf2;
+    exit;
+   end;
+  end;
+ end;
+ gatabgraf2;
+ a^:=b^;
+end;
+
+procedure incarcbmp;
+var z,t: integer;
+    bt: byte;
+begin
+ anuleaza:=false;
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ if compresie=0 then
+ if bpp=4 then
+ begin
+  initbgraf2;
+  if nom then exit;
+  pozbuf:=sizeof(minibuf^);
+  pal:=normpal1;
+  seek(f,54);
+  rezultat:=ioresult;
+  for x:=0 to 15 do
+  begin
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][3]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][2]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][1]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+  end;
+  setpal(pal);
+  for y:=0 to sy-1 do
+  begin
+   for x:=0 to sx-1 do
+   begin
+    if x mod 2=0 then
+    begin
+     buf[1]:=chr(readbyte);
+     bt:=(byte(buf[1]) and (not $f))shr 4;
+    end else
+    bt:=byte(buf[1]) and (not $F0);
+    b^[sy-y-1,x]:=bt;
+   end;
+   if y mod ncspeed=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     a^:=b^;
+     elimintasta;
+     gatabgraf2;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+  gatabgraf2;
+ end;
+ if compresie=0 then
+ if bpp=8 then
+ begin
+  seek(f,54);
+  rezultat:=ioresult;
+  for x:=0 to 255 do
+  begin
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][3]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][2]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   rezultat:=ioresult;
+   pal[x][1]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+  end;
+  setpal(pal);
+  for y:=0 to sy-1 do
+  begin
+   blockread(f,b^[sy-1-y,0],sx,w);
+   rezultat:=ioresult;
+   if y mod ncspeed=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     a^:=b^;
+     elimintasta;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+ end;
+ if compresie=0 then
+ if bpp=16 then
+ begin
+  initbgraf2;
+  if nom then exit;
+  pozbuf:=sizeof(minibuf^);
+  seek(f,54);
+  rezultat:=ioresult;
+  pal:=normpal1;
+  setpal(pal);
+  for y:=0 to sy-1 do
+  begin
+   blockread(f,c^[0,0],sx*2,w);
+   rezultat:=ioresult;
+   for x:=0 to sx-1 do
+   begin
+    wd:=memw[seg(c^):x*2];
+    b1:=0;b2:=0;b3:=0;
+    for z:=0 to 4 do
+    if (wd and (1 shl z))<>0 then
+    b1:=b1 or (1 shl z);
+    for z:=0 to 4 do
+    if (wd and (1 shl (z+5)))<>0 then
+    b2:=b2 or (1 shl z);
+    for z:=0 to 4 do
+    if (wd and (1 shl (z+10)))<>0 then
+    b3:=b3 or (1 shl z);
+    b^[sy-y-1,x]:=palnearpalcolor(pal,b1,b2,b3);
+   end;
+   if y mod 1=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     elimintasta;
+     gatabgraf2;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+ end;
+ if compresie=0 then
+ if bpp=24 then
+ begin
+  initbgraf2;
+  if nom then exit;
+  pozbuf:=sizeof(minibuf^);
+  seek(f,54);
+  rezultat:=ioresult;
+  pal:=normpal1;
+  setpal(pal);
+  for y:=0 to sy-1 do
+  begin
+   blockread(f,c^[0,0],sx*3,w);
+   rezultat:=ioresult;
+   for x:=0 to sx-1 do
+   begin
+    b1:=mem[seg(c^):x*3] div 4;
+    b2:=mem[seg(c^):x*3+1] div 4;
+    b3:=mem[seg(c^):x*3+2] div 4;
+    b^[sy-y-1,x]:=palnearpalcolor(pal,b1,b2,b3);
+   end;
+   if y mod 1=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     elimintasta;
+     gatabgraf2;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+ end;
+ a^:=b^;
+end;
+
+procedure incarcico;
+var z,t: integer;
+    id,bt: byte;
+    s: string[20];
+    pline: integer;
+    byteul,bitul: integer;
+begin
+ anuleaza:=false;
+ if bpp=4 then
+ begin
+  initbgraf2;
+  if nom then exit;
+  pozbuf:=sizeof(minibuf^);
+  pal:=normpal1;
+  seek(f,62);
+  rezultat:=ioresult;
+  for x:=0 to 15 do
+  begin
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][3]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][2]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][1]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+  end;
+  setpal(pal);
+  seek(f,4);
+  rezultat:=ioresult;
+  blockread(f,id,1,w);
+  rezultat:=ioresult;
+  seek(f,126+(id-1)*16);
+  rezultat:=ioresult;
+  for y:=0 to sy-1 do
+  begin
+   for x:=0 to sx-1 do
+   begin
+    if x mod 2=0 then
+    begin
+     buf[1]:=chr(readbyte);
+     bt:=(byte(buf[1]) and (not $f))shr 4;
+    end else
+    bt:=byte(buf[1]) and (not $F0);
+    b^[sy-y-1,x]:=bt;
+   end;
+   if y mod ncspeed=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     a^:=b^;
+     elimintasta;
+     gatabgraf2;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+  gatabgraf2;
+ end;
+ if bpp=8 then
+ begin
+  seek(f,62);
+  rezultat:=ioresult;
+  for x:=0 to 255 do
+  begin
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][3]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][2]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+   pal[x][1]:=bt div 4;
+   blockread(f,bt,1,w);
+   rezultat:=ioresult;
+  end;
+  setpal(pal);
+  if sx<1 then sx:=1;
+  if sy<1 then sy:=1;
+  if sx>320 then sx:=320;
+  if sy>200 then sy:=200;
+  seek(f,1078+8);
+  rezultat:=ioresult;
+  for y:=0 to sy-1 do
+  begin
+   blockread(f,b^[sy-1-y,0],sx,w);
+   rezultat:=ioresult;
+   if y mod ncspeed=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     a^:=b^;
+     elimintasta;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+ end;
+ if bpp=16 then
+ begin
+  initbgraf2;
+  if nom then exit;
+  pozbuf:=sizeof(minibuf^);
+  seek(f,62);
+  rezultat:=ioresult;
+  pal:=normpal1;
+  setpal(pal);
+  for y:=0 to sy-1 do
+  begin
+   blockread(f,c^[0,0],sx*2,w);
+   rezultat:=ioresult;
+   for x:=0 to sx-1 do
+   begin
+    wd:=memw[seg(c^):x*2];
+    b1:=0;b2:=0;b3:=0;
+    for z:=0 to 4 do
+    if (wd and (1 shl z))<>0 then
+    b1:=b1 or (1 shl z);
+    for z:=0 to 4 do
+    if (wd and (1 shl (z+5)))<>0 then
+    b2:=b2 or (1 shl z);
+    for z:=0 to 4 do
+    if (wd and (1 shl (z+10)))<>0 then
+    b3:=b3 or (1 shl z);
+    b^[sy-y-1,x]:=palnearpalcolor(pal,b1,b2,b3);
+   end;
+   if y mod 1=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     elimintasta;
+     anuleaza:=true;
+     gatabgraf2;
+     exit;
+    end;
+   end;
+  end;
+ end;
+ if bpp=24 then
+ begin
+  initbgraf2;
+  if nom then exit;
+  pozbuf:=sizeof(minibuf^);
+  seek(f,62);
+  rezultat:=ioresult;
+  pal:=normpal1;
+  setpal(pal);
+  for y:=0 to sy-1 do
+  begin
+   blockread(f,c^[0,0],sx*3,w);
+   rezultat:=ioresult;
+   for x:=0 to sx-1 do
+   begin
+    b1:=mem[seg(c^):x*3] div 4;
+    b2:=mem[seg(c^):x*3+1] div 4;
+    b3:=mem[seg(c^):x*3+2] div 4;
+    b^[sy-y-1,x]:=palnearpalcolor(pal,b1,b2,b3);
+   end;
+   if y mod 1=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     elimintasta;
+     gatabgraf2;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+ end;
+ a^:=b^;
+end;
+
+procedure incarcgif;
+var z,t: integer;
+    at,bt: byte;
+    f2: file;
+    s: string[20];
+    rx,ry: word;
+    colormap,interlace: boolean;
+    rez,bpp,back,bitmask,colorsize,codesize: byte;
+    lofs,tofs,clearcode,eofcode,firstfree,freecode: word;
+    initcodesize,maxcode,readmask,outcount: word;
+
+function readword: word;
+begin
+ readword:=readbyte*255+readbyte;
+end;
+
+function readbyte2: byte;
+begin
+ pozbuf:=pozbuf+1;
+ if pozbuf>sizeof(minibuf^) then
+ begin
+  pozbuf:=1;
+  blockread(f2,minibuf^,sizeof(minibuf^),w);
+  rezultat:=ioresult;
+ end;
+ readbyte2:=minibuf^[pozbuf];
+end;
+
+function readword2: word;
+begin
+ readword2:=readbyte2*255+readbyte2;
+end;
+
+procedure readraster;
+var blocklength: byte;
+    i,ior: integer;
+begin
+ filemode:=2;
+ rezultat:=ioresult;
+ assign(f2,'$$$MSGIF.TMP');
+ rezultat:=ioresult;
+ rewrite(f2,1);
+ rezultat:=ioresult;
+ repeat
+  blocklength:=readbyte;
+  blockread(f,c^,blocklength,w);
+  rezultat:=ioresult;
+  blockwrite(f2,c^,blocklength,w);
+  rezultat:=ioresult;
+ until (blocklength=0)or(eof(f));
+ seek(f2,0);
+ rezultat:=ioresult;
+ filemode:=0;
+end;
+
+begin
+ anuleaza:=false;
+ rezultat:=ioresult;
+ initbgraf2;
+ if nom then exit;
+ pozbuf:=sizeof(minibuf^);
+ if nom then exit;
+ seek(f,6);
+ rezultat:=ioresult;
+ rx:=readword;
+ ry:=readword;
+ bt:=readbyte;
+ if bt and $80=$80 then colormap:=true else colormap:=false;
+ rez:=bt and $70 shr 5+1;
+ bpp:=bt and 7 +1;
+ if bpp>8 then
+ begin
+  gatabgraf2;
+  exit;
+ end;
+ bitmask:=1 shl bpp-1;
+ colorsize:=bitmask;
+ back:=readbyte;
+ bt:=readbyte;
+ pal:=normpal;
+ if colormap then
+ for x:=0 to colorsize do
+ begin
+  pal[x][1]:=readbyte div 4;
+  pal[x][2]:=readbyte div 4;
+  pal[x][2]:=readbyte div 4;
+ end;
+ setpal(pal);
+ bt:=readbyte;
+ if bt<>44 then
+ begin
+  gatabgraf2;
+  exit;
+ end;
+ lofs:=readword;
+ tofs:=readword;
+ sx:=readword;
+ sy:=readword;
+ at:=readbyte;
+ if at and $40=$40 then interlace:=true else interlace:=false;
+ codesize:=readbyte;
+ clearcode:=1 shl codesize;
+ eofcode:=clearcode+1;
+ firstfree:=clearcode+2;
+ freecode:=firstfree;
+ codesize:=codesize+1;
+ initcodesize:=codesize;
+ maxcode:=1 shl codesize;
+ readmask:=1 shl codesize-1;
+ readraster;
+ close(f2);
+ rezultat:=ioresult;
+ erase(f2);
+ rezultat:=ioresult;
+ gatabgraf2;
+ a^:=b^;
+end;
+
+procedure incarctga;
+begin
+ anuleaza:=false;
+ seek(f,18);
+ rezultat:=ioresult;
+ blockread(f,pal,768,w);
+ rezultat:=ioresult;
+ for x:=0 to 255 do
+ for y:=1 to 3 do
+ pal[x][y]:=pal[x][y] div 4;
+ setpal(pal);
+ if sx<1 then sx:=1;
+ if sy<1 then sy:=1;
+ if sx>320 then sx:=320;
+ if sy>200 then sy:=200;
+ if not compresat then
+ begin
+  for y:=0 to sy-1 do
+  begin
+   blockread(f,buf,sx,w);
+   rezultat:=ioresult;
+   move(buf,b^[y,0],sx);
+   if y mod ncspeed=0 then
+   begin
+    a^:=b^;
+    elimintasta;
+    citesctasta;
+    if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+    begin
+     a^:=b^;
+     elimintasta;
+     anuleaza:=true;
+     exit;
+    end;
+   end;
+  end;
+ end;
+ if compresat then
+ if compresie=9 then
+ begin
+  initbgraf2;
+  if nom then exit;
+  pozbuf:=sizeof(minibuf^);
+  count:=1;
+  gatabgraf2;
+ end;
+ a^:=b^;
+end;
+
+procedure incarcdupaformat;
+begin
+ if format=fmvb then incarcmvb;
+ if format=fmhb then incarcmhb;
+ if format=fmhp then incarcmhp;
+ if format=fmcb then incarcmcb;
+ if format=fmcp then incarcmcp;
+ if format=fcel then incarccel;
+ if format=fpcx then incarcpcx;
+ if format=fbmp then incarcbmp;
+ if format=fico then incarcico;
+ if format=fgif then incarcgif;
+ if format=ftga then incarctga;
+end;
+
+procedure arataimagine(poz: integer);
+var iesire: boolean;
+    stx,sty: integer;
+    numef: string;
+begin
+ numef:=upstring(fullstring(panou[poz].nume,panou[poz].ext));
+ rezultat:=ioresult;
+ assign(f,numef);
+ rezultat:=ioresult;
+ reset(f,1);
+ rezultat:=ioresult;
+ if rezultat<>0 then exit;
+{ if not panou[poz].scan then}
+ begin
+  gasescformat;
+  panou[poz].scan:=true;
+  panou[poz].paleta:=paleta;
+  panou[poz].interlace:=interlace;
+  panou[poz].compresat:=compresat;
+  panou[poz].compresie:=compresie;
+  panou[poz].sx:=sx;
+  panou[poz].sy:=sy;
+  panou[poz].bpp:=bpp;
+  panou[poz].format:=format;
+  if format<>fnecunoscut then nrimg:=nrimg+1;
+  nrs:=nrs+1;
+ end;
+ if (format=fnecunoscut)or(not formatgasit) then
+ begin
+  close(f);
+  rezultat:=ioresult;
+  exit;
+ end;
+ nom:=false;
+ initbgraf1;
+ elimintasta;
+ if nom then
+ begin
+  close(f);
+  rezultat:=ioresult;
+  exit;
+ end;
+ clearbuf(b,0);
+ a^:=b^;
+ initgr;
+ pal:=normpal1;
+ setpal(pal);
+ anuleaza:=false;
+ iesire:=false;
+ paleta:=panou[poz].paleta;
+ interlace:=panou[poz].interlace;
+ compresat:=panou[poz].compresat;
+ compresie:=panou[poz].compresie;
+ sx:=panou[poz].sx;
+ sy:=panou[poz].sy;
+ bpp:=panou[poz].bpp;
+ format:=panou[poz].format;
+ nom:=false;
+ incarcdupaformat;
+ if (not anuleaza)and formatgasit and (not nom) then
+ if sunet then
+ begin
+  for x:=10 to 100 do
+  begin
+   sound(x*10);
+   delay(3);
+  end;
+  nosound;
+ end;
+ if anuleaza then
+ if sunet then
+ for x:=100 downto 10 do
+ begin
+  sound(x*10);
+  delay(3);
+ end;
+ nosound;
+ close(f);
+ rezultat:=ioresult;
+ repeat
+  elimintasta;
+  citesctasta;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tsus) then
+  begin
+   elimintasta;
+   miscsus;
+   poz:=epoz+dpoz;
+   if ((panou[epoz+dpoz].attr and directory)<>0)or anuleaza then
+   begin
+    clearbuf(b,0);
+    a^:=b^;
+    setpal(normpal1);
+    anuleaza:=false;
+    gatabgraf1;
+    exit;
+   end;
+   numef:=upstring(fullstring(panou[poz].nume,panou[poz].ext));
+   rezultat:=ioresult;
+   assign(f,numef);
+   rezultat:=ioresult;
+   reset(f,1);
+   rezultat:=ioresult;
+   if rezultat<>0 then
+   begin
+    gatabgraf1;
+    exit;
+   end;
+{   if not panou[poz].scan then}
+   begin
+    gasescformat;
+    panou[poz].scan:=true;
+    panou[poz].paleta:=paleta;
+    panou[poz].interlace:=interlace;
+    panou[poz].compresat:=compresat;
+    panou[poz].compresie:=compresie;
+    panou[poz].sx:=sx;
+    panou[poz].sy:=sy;
+    panou[poz].bpp:=bpp;
+    panou[poz].format:=format;
+    nrs:=nrs+1;
+    if format<>fnecunoscut then nrimg:=nrimg+1;
+   end;
+   clearbuf(b,0);
+   a^:=b^;
+   paleta:=panou[poz].paleta;
+   interlace:=panou[poz].interlace;
+   compresat:=panou[poz].compresat;
+   compresie:=panou[poz].compresie;
+   sx:=panou[poz].sx;
+   sy:=panou[poz].sy;
+   bpp:=panou[poz].bpp;
+   format:=panou[poz].format;
+   nom:=false;
+   incarcdupaformat;
+   if (not anuleaza)and formatgasit and (not nom) then
+   if sunet then
+   begin
+    for x:=10 to 100 do
+    begin
+     sound(x*10);
+     delay(3);
+    end;
+    nosound;
+   end;
+   if anuleaza then
+   if sunet then
+   for x:=100 downto 10 do
+   begin
+    sound(x*10);
+    delay(3);
+   end;
+   nosound;
+   close(f);
+   rezultat:=ioresult;
+  end;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tjos) then
+  begin
+   elimintasta;
+   miscjos;
+   poz:=epoz+dpoz;
+   if (panou[epoz+dpoz].attr and directory)<>0 then
+   begin
+    clearbuf(b,0);
+    a^:=b^;
+    setpal(normpal1);
+    gatabgraf1;
+    exit;
+   end;
+   if epoz+dpoz<>pozv then
+   begin
+    numef:=upstring(fullstring(panou[poz].nume,panou[poz].ext));
+    rezultat:=ioresult;
+    assign(f,numef);
+    rezultat:=ioresult;
+    reset(f,1);
+    rezultat:=ioresult;
+    if rezultat<>0 then
+    begin
+     gatabgraf1;
+     exit;
+    end;
+    poz:=epoz+dpoz;
+{    if not panou[poz].scan then}
+    begin
+     gasescformat;
+     panou[poz].scan:=true;
+     panou[poz].paleta:=paleta;
+     panou[poz].interlace:=interlace;
+     panou[poz].compresat:=compresat;
+     panou[poz].compresie:=compresie;
+     panou[poz].sx:=sx;
+     panou[poz].sy:=sy;
+     panou[poz].bpp:=bpp;
+     panou[poz].format:=format;
+     nrs:=nrs+1;
+     if format<>fnecunoscut then nrimg:=nrimg+1;
+    end;
+    clearbuf(b,0);
+    a^:=b^;
+    paleta:=panou[poz].paleta;
+    interlace:=panou[poz].interlace;
+    compresat:=panou[poz].compresat;
+    compresie:=panou[poz].compresie;
+    sx:=panou[poz].sx;
+    sy:=panou[poz].sy;
+    bpp:=panou[poz].bpp;
+    format:=panou[poz].format;
+    nom:=false;
+    incarcdupaformat;
+    close(f);
+    rezultat:=ioresult;
+    if (not anuleaza)and formatgasit and (not nom) then
+    if sunet then
+    begin
+     for x:=10 to 100 do
+     begin
+      sound(x*10);
+      delay(3);
+     end;
+     nosound;
+    end;
+    if anuleaza then
+    if sunet then
+    for x:=100 downto 10 do
+    begin
+     sound(x*10);
+     delay(3);
+    end;
+    nosound;
+   end;
+  end;
+  if (tasta.citita)and(tasta.zero)and
+  ((tasta.cod=ord('r'))or(tasta.cod=ord('R'))) then
+  begin
+   elimintasta;
+   clearbuf(b,0);
+   a^:=b^;
+   paleta:=panou[poz].paleta;
+   interlace:=panou[poz].interlace;
+   compresat:=panou[poz].compresat;
+   compresie:=panou[poz].compresie;
+   sx:=panou[poz].sx;
+   sy:=panou[poz].sy;
+   bpp:=panou[poz].bpp;
+   format:=panou[poz].format;
+   nom:=false;
+   incarcdupaformat;
+   if (not anuleaza)and formatgasit and (not nom) then
+   if sunet then
+   begin
+    for x:=10 to 100 do
+    begin
+     sound(x*10);
+     delay(3);
+    end;
+    nosound;
+   end;
+   if anuleaza then
+   if sunet then
+   for x:=100 downto 10 do
+   begin
+    sound(x*10);
+    delay(3);
+   end;
+   nosound;
+  end;
+  if ((tasta.citita)and(not tasta.zero)and(tasta.cod=tesc))or(anuleaza) then
+  iesire:=true;
+  pozv:=epoz+dpoz;
+  if nom then iesire:=true;
+  a^:=b^;
+ until iesire;
+ clearbuf(b,0);
+ a^:=b^;
+ setpal(normpal1);
+ elimintasta;
+ gatabgraf1;
+end;
+
+procedure selectaredrive;
+var iesire,selectat,estedisc: boolean;
+    st: string;
+    xp,yp,nr,sdrive: integer;
+    nrlinii: integer;
+    linie: array[1..5] of integer;
+begin
+ sttemp:=curentdrivedir;
+ curentvdir:=curentdrivedir;
+ tc^:=tb^;
+ setcharcolor(9);
+ setbaccolor(1);
+ setchar(#0);
+ ferg80x25(tb,5,7,76,20,'Alege noul drive');
+ iesire:=false;
+ selectat:=false;
+ estedisc:=false;
+ for x:=1 to 26 do
+ drive[x]:=validdrive(x);
+ nr:=0;
+ for x:=1 to 26 do
+ if drive[x] then
+ begin
+  nr:=nr+1;
+  xp:=15+((nr-1) mod 7)*8;
+  yp:=9+trunc((nr-1)/7)*3;
+  setbaccolor(14);
+  setcharcolor(1);
+  writestring80x25(tb,xp,yp,'  '+chr(ord('A')+x-1)+'  ',false,false,false);
+ end;
+ repeat
+  elimintasta;
+  citesctasta;
+  for x:=1 to 26 do
+  if (tasta.citita)and(not tasta.zero)and
+  (tasta.cod=ord('a')-1+x)or(tasta.cod=ord('A')-1+x) then
+  if drive[x] then
+  begin
+   selectat:=true;
+   sdrive:=x;
+   iesire:=true;
+  end;
+  ta^:=tb^;
+  if (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc) then
+  begin
+   ta^:=tc^;
+   tb^:=tc^;
+   elimintasta;
+   exit;
+  end;
+ until iesire;
+ getdir(sdrive,curentdrivedir);
+ rezultat:=ioresult;
+ if rezultat=0 then
+ begin
+  chdir(curentdrivedir);
+  rezultat:=ioresult;
+ end;
+ if rezultat<>0 then
+ begin
+  setcharcolor(9);
+  setbaccolor(1);
+  setchar(#0);
+  ferg80x25(tb,7,10,74,12,'??Eroare la schimbarea drive-ului??');
+  writestring80x25(tb,1,11,'Nu este disc in drive-ul '+
+  chr(sdrive+ord('A')-1)+':!',false,false,true);
+  ta^:=tb^;
+  elimintasta;
+  repeat
+   elimintasta;
+   citesctasta;
+  until tasta.citita;
+  tb^:=tc^;
+  elimintasta;
+  chdir(sttemp);
+  curentdrivedir:=sttemp;
+  rezultat:=ioresult;
+  exit;
+ end;
+ scandir;
+ dpoz:=0;
+ epoz:=1;
+ elimintasta;
+ tb^:=tc^;
+end;
+
+procedure myexit;
+var cod: integer;
+begin
+ exitproc:=oldexit;
+ gatabtext;
+ gatabgraf1;
+ gatabgraf2;
+ inittext80x25;
+ cursor(true);
+ cod:=exitcode;
+ if cod<>0 then
+ begin
+  writeln('MSoft - Eroare!');
+  writeln('Cod: ',cod:3,'.');
+  writeln('Adresa: ',conv(seg(erroraddr^)),':',conv(ofs(erroraddr^)),'.');
+ end;
+ if nom then writeln('Memorie insuficienta!');
+ salvezini;
+ write('CRC la MSOFT.MHP ',wordtost(crf),'H');
+ if crc=crf then writeln(' corect.') else writeln(' modificat!');
+end;
+
+procedure ajutor;
+const nrstrings=18;
+var strgs: array[1..nrstrings] of string[72];
+    nrec,pozc: integer;
+begin
+ nrec:=16;
+ tc^:=tb^;
+ pozc:=1;
+ strgs[1]:='MSoft - Ajutorul de care ai nevoie';
+ strgs[2]:='Ca sa derulezi in sus sau in jos';
+ strgs[3]:='apasa tastele de directie';
+ strgs[4]:='';
+ strgs[5]:='Cand nu e incarcata imaginea:';
+ strgs[6]:='';
+ strgs[7]:='Tasta D - Alege un nou drive';
+ strgs[8]:='Tasta \ - Se duce in radacina';
+ strgs[9]:='Tasta BackSpace - Iese din director';
+ strgs[10]:='Tasta I - Da informatii despre fisier';
+ strgs[11]:='Tasta C - Converteste formatul (inca nu)';
+ strgs[12]:='Tasta S - Scaneaza directorul curent in cautare de imagini';
+ strgs[13]:='Tasta O - Intra in meniul de optiuni (ai vrea tu)';
+ strgs[14]:='';
+ strgs[15]:='Cand e incarcata imaginea:';
+ strgs[16]:='';
+ strgs[17]:='Tasta sus urca la imaginea de sus';
+ strgs[18]:='Tasta sus coboara la imaginea de jos';
+ setcharcolor(4);
+ setbaccolor(14);
+ ferg80x25(tc,3,3,78,22,'Ajutor! Nu sunt de la MSoft!');
+ repeat
+  tb^:=tc^;
+  elimintasta;
+  citesctasta;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tjos) then
+  pozc:=pozc+1;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tsus) then
+  pozc:=pozc-1;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tpgdn) then
+  pozc:=pozc+10;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tpgup) then
+  pozc:=pozc-10;
+  if pozc>nrstrings-nrec+1 then pozc:=nrstrings-nrec+1;
+  if pozc<1 then pozc:=1;
+  for x:=0 to nrec-1 do
+  if x+pozc<=nrstrings then
+  writestring80x25(tb,1,x+5,strgs[x+pozc],false,false,true);
+  ta^:=tb^;
+ until (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc);
+ elimintasta;
+end;
+
+procedure desenezpanou;
+begin
+ setcharcolor(4);
+ setbaccolor(14);
+ setchar(#0);
+ bara80x25(tb,1,1,80,25);
+ setcharcolor(14);
+ setbaccolor(4);
+ bara80x25(tb,1,1,80,1);
+ bara80x25(tb,1,25,80,25);
+ writestring80x25(tb,1,1,copyright,false,false,true);
+ setcharcolor(4);
+ setbaccolor(14);
+ if (length(curentdrivedir)>3)and(curentdrivedir[length(curentdrivedir)]='\')
+ then curentdrivedir[0]:=chr(ord(curentdrivedir[0])-1);
+ ferg80x25(tb,1,3,80,24,upstring(curentdrivedir));
+ if nre>0 then
+ begin
+  for x:=1 to dp do
+  if dpoz+x<=nre then
+  begin
+   setcharcolor(4);
+   setbaccolor(14);
+   if x=epoz then
+   begin
+    setcharcolor(14);
+    setbaccolor(1);
+   end;
+   strtemp:=panou[dpoz+x].nume;
+   for y:=length(strtemp)+1 to 9 do
+   strtemp:=strtemp+' ';
+   strtemp:=strtemp+panou[dpoz+x].ext;
+   for y:=length(panou[dpoz+x].ext)+1 to 4 do
+   strtemp:=strtemp+' ';
+   if (panou[dpoz+x].attr and directory)<>0 then
+   strtemp:=strtemp+'    DIR     ' else
+   begin
+    str(panou[dpoz+x].marime:10,s1);
+    if panou[dpoz+x].marime=0 then s1:='         0';
+    strtemp:=strtemp+s1+'  ';
+   end;
+   if panou[dpoz+x].nume<>'..' then
+   begin
+    if (panou[dpoz+x].attr and archive)<>0 then strtemp:=strtemp+'A ' else
+    strtemp:=strtemp+'- ';
+    if (panou[dpoz+x].attr and readonly)<>0 then strtemp:=strtemp+'R ' else
+    strtemp:=strtemp+'- ';
+    if (panou[dpoz+x].attr and sysfile)<>0 then strtemp:=strtemp+'S ' else
+    strtemp:=strtemp+'- ';
+    if (panou[dpoz+x].attr and hidden)<>0 then strtemp:=strtemp+'H ' else
+    strtemp:=strtemp+'- ';
+    strtemp:=strtemp+' ';
+   end else strtemp:=strtemp+'         ';
+   if panou[dpoz+x].scan then
+   begin
+    if panou[dpoz+x].format=fmvb then strtemp:=strtemp+'MVB ' else
+    if panou[dpoz+x].format=fmhb then strtemp:=strtemp+'MHB ' else
+    if panou[dpoz+x].format=fmhp then strtemp:=strtemp+'MHP ' else
+    if panou[dpoz+x].format=fmcb then strtemp:=strtemp+'MCB ' else
+    if panou[dpoz+x].format=fmcp then strtemp:=strtemp+'MCP ' else
+    if panou[dpoz+x].format=fcel then strtemp:=strtemp+'CEL ' else
+    if panou[dpoz+x].format=fpcx then strtemp:=strtemp+'PCX ' else
+    if panou[dpoz+x].format=fbmp then strtemp:=strtemp+'BMP ' else
+    if panou[dpoz+x].format=fico then strtemp:=strtemp+'ICO ' else
+    if panou[dpoz+x].format=fgif then strtemp:=strtemp+'GIF ' else
+    if panou[dpoz+x].format=ftga then strtemp:=strtemp+'TGA ' else
+    strtemp:=strtemp+'??? ';
+    if panou[dpoz+x].format<>fnecunoscut then
+    begin
+     str(panou[dpoz+x].sx,s1);
+     str(panou[dpoz+x].sy,s2);
+     s1:=s1+'x'+s2+'x';
+     if panou[dpoz+x].bpp<=8 then
+     begin
+      str(1 shl panou[dpoz+x].bpp,s2);
+      s2:=s2+ ' culori';
+     end else
+     begin
+      str(panou[dpoz+x].bpp,s2);
+      s2:=s2+ ' biti';
+     end;
+     s1:=s1+s2;
+     for y:=length(s1)+1 to 25 do
+     s1:=s1+' ';
+     strtemp:=strtemp+s1;
+    end;
+   end;
+   for y:=length(strtemp)+1 to 76 do
+   strtemp:=strtemp+' ';
+   writestring80x25(tb,3,3+x,strtemp,false,false,false);
+  end;
+ end else
+ begin
+  setcharcolor(4);
+  setbaccolor(14);
+  writestring80x25(tb,1,4,'Discul e gol!',false,false,true);
+ end;
+ setcharcolor(4);
+ setbaccolor(14);
+ if panou[1].nume='..' then str(nrd-1:4,s1) else
+ str(nrd:4,s1);
+ strtemp:='Directoare: '+s1;
+ str(nrf:4,s1);
+ strtemp:=strtemp+' Fisiere: '+s1;
+ str(nrimg:4,s1);
+ strtemp:=strtemp+' Imagini: '+s1;
+ str(nrs:4,s1);
+ strtemp:=strtemp+' Scanate '+s1;
+ writestring80x25(tb,1,2,strtemp,false,false,false);
+end;
+
+procedure aratainformatii(poz: longint);
+var nume: string;
+begin
+ nume:=upstring(fullstring(panou[poz].nume,panou[poz].ext));
+{ if not panou[poz].scan then}
+ begin
+  rezultat:=ioresult;
+  assign(f,nume);
+  rezultat:=ioresult;
+  reset(f,1);
+  rezultat:=ioresult;
+  if rezultat<>0 then exit;
+  gasescformat;
+  panou[poz].scan:=true;
+  panou[poz].paleta:=paleta;
+  panou[poz].interlace:=interlace;
+  panou[poz].compresat:=compresat;
+  panou[poz].compresie:=compresie;
+  panou[poz].sx:=sx;
+  panou[poz].sy:=sy;
+  panou[poz].bpp:=bpp;
+  panou[poz].format:=format;
+  nrs:=nrs+1;
+  if format<>fnecunoscut then nrimg:=nrimg+1;
+  close(f);
+  rezultat:=ioresult;
+ end;
+ tc^:=tb^;
+ setcharcolor(4);
+ setbaccolor(14);
+ ferg80x25(tb,3,3,78,23,'Informatii despre '+nume+':');
+ if panou[poz].format=fnecunoscut then
+ begin
+  strtemp:='Format: necunoscut';
+  writestring80x25(tb,1,5,strtemp,false,false,true);
+  str(panou[poz].marime,s1);
+  strtemp:='Marime fisier: '+s1;
+  writestring80x25(tb,1,6,strtemp,false,false,true);
+  strtemp:='Atribute: ';
+  if (panou[poz].attr and archive)<>0 then strtemp:=strtemp+'A ' else
+  strtemp:=strtemp+'- ';
+  if (panou[poz].attr and readonly)<>0 then strtemp:=strtemp+'R ' else
+  strtemp:=strtemp+'- ';
+  if (panou[poz].attr and sysfile)<>0 then strtemp:=strtemp+'S ' else
+  strtemp:=strtemp+'- ';
+  if (panou[poz].attr and hidden)<>0 then strtemp:=strtemp+'H ' else
+  strtemp:=strtemp+'- ';
+  writestring80x25(tb,1,7,strtemp,false,false,true);
+ end else
+ begin
+  strtemp:='Format: ';
+  if panou[poz].format=fmvb then strtemp:=strtemp+'MVB ' else
+  if panou[poz].format=fmhb then strtemp:=strtemp+'MHB ' else
+  if panou[poz].format=fmhp then strtemp:=strtemp+'MHP ' else
+  if panou[poz].format=fmcb then strtemp:=strtemp+'MCB ' else
+  if panou[poz].format=fmcp then strtemp:=strtemp+'MCP ' else
+  if panou[poz].format=fcel then strtemp:=strtemp+'CEL ' else
+  if panou[poz].format=fpcx then strtemp:=strtemp+'PCX ' else
+  if panou[poz].format=fbmp then strtemp:=strtemp+'BMP ' else
+  if panou[poz].format=fico then strtemp:=strtemp+'ICO ' else
+  if panou[poz].format=fgif then strtemp:=strtemp+'GIF ' else
+  if panou[poz].format=ftga then strtemp:=strtemp+'TGA ' else
+  strtemp:=strtemp+'??? ';
+  writestring80x25(tb,1,5,strtemp,false,false,true);
+  str(panou[poz].marime,s1);
+  strtemp:='Marime fisier: '+s1;
+  writestring80x25(tb,1,6,strtemp,false,false,true);
+  strtemp:='Atribute: ';
+  if (panou[poz].attr and archive)<>0 then strtemp:=strtemp+'A ' else
+  strtemp:=strtemp+'- ';
+  if (panou[poz].attr and readonly)<>0 then strtemp:=strtemp+'R ' else
+  strtemp:=strtemp+'- ';
+  if (panou[poz].attr and sysfile)<>0 then strtemp:=strtemp+'S ' else
+  strtemp:=strtemp+'- ';
+  if (panou[poz].attr and hidden)<>0 then strtemp:=strtemp+'H ' else
+  strtemp:=strtemp+'- ';
+  writestring80x25(tb,1,7,strtemp,false,false,true);
+  strtemp:='Compresie: ';
+  if panou[poz].compresat then
+  strtemp:=strtemp+'da, metoda '''+wordtost(panou[poz].compresie)+'''' else
+  strtemp:=strtemp+'nu';
+  writestring80x25(tb,1,8,strtemp,false,false,true);
+  strtemp:='Paleta: ';
+  if panou[poz].paleta then strtemp:=strtemp+'da' else
+  strtemp:=strtemp+'nu';
+  writestring80x25(tb,1,9,strtemp,false,false,true);
+  strtemp:='Interlace: ';
+  if panou[poz].interlace then strtemp:=strtemp+'da' else
+  strtemp:=strtemp+'nu';
+  writestring80x25(tb,1,10,strtemp,false,false,true);
+  strtemp:='Marime pe orizontala: ';
+  str(panou[poz].sx,s1);
+  strtemp:=strtemp+s1;
+  writestring80x25(tb,1,11,strtemp,false,false,true);
+  strtemp:='Marime pe verticala: ';
+  str(panou[poz].sy,s1);
+  strtemp:=strtemp+s1;
+  writestring80x25(tb,1,12,strtemp,false,false,true);
+  strtemp:='Nuante: ';
+  if panou[poz].bpp<=8 then
+  begin
+   str(1 shl panou[poz].bpp,s1);
+   s1:=s1+' culori';
+  end else
+  begin
+   str(panou[poz].bpp,s1);
+   s1:=s1+' biti';
+  end;
+  strtemp:=strtemp+s1;
+  writestring80x25(tb,1,13,strtemp,false,false,true);
+ end;
+ repeat
+  elimintasta;
+  citesctasta;
+  ta^:=tb^;
+ until (tasta.citita);
+ elimintasta;
+ tb^:=tc^;
+end;
+
+procedure dutenoptiuni;
+const maxmen=3;
+var men: byte;
+    menustr: array[1..maxmen] of string[72];
+begin
+ men:=1;
+ menustr[1]:='Scanare automata a formatului: ';
+ menustr[2]:='Eliminarea din panou a fisierelor fara imagine: ';
+ menustr[3]:='Sunet: ';
+ tc^:=tb^;
+ setcharcolor(4);
+ setbaccolor(14);
+ ferg80x25(tc,3,3,78,22,'Optiuni:');
+ repeat
+  tb^:=tc^;
+  elimintasta;
+  citesctasta;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tsus) then men:=men-1;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tjos) then men:=men+1;
+  if men>maxmen then men:=1;
+  if men<1 then men:=maxmen;
+  if (tasta.citita)and(not tasta.zero)and(tasta.cod=tenter) then
+  begin
+   if men=1 then
+   begin
+    if scanez then scanez:=false else
+    scanez:=true;
+   end;
+   if men=2 then
+   begin
+    if elimin then elimin:=false else
+    elimin:=true;
+   end;
+   if men=3 then
+   begin
+    if sunet then sunet:=false else
+    sunet:=true;
+   end;
+  end;
+  setcharcolor(4);
+  setbaccolor(14);
+  if 1=men then
+  begin
+   setcharcolor(14);
+   setbaccolor(1);
+  end;
+  strtemp:=menustr[1];
+  if scanez then strtemp:=strtemp+'da' else
+  begin
+   strtemp:=strtemp+'nu';
+   elimin:=false;
+  end;
+  for x:=length(strtemp)+1 to 72 do strtemp:=strtemp+' ';
+  writestring80x25(tb,5,5,strtemp,false,false,false);
+  setcharcolor(4);
+  setbaccolor(14);
+  if 2=men then
+  begin
+   setcharcolor(14);
+   setbaccolor(1);
+  end;
+  strtemp:=menustr[2];
+  if elimin then strtemp:=strtemp+'da' else
+  strtemp:=strtemp+'nu';
+  for x:=length(strtemp)+1 to 72 do strtemp:=strtemp+' ';
+  writestring80x25(tb,5,6,strtemp,false,false,false);
+  setcharcolor(4);
+  setbaccolor(14);
+  if 3=men then
+  begin
+   setcharcolor(14);
+   setbaccolor(1);
+  end;
+  strtemp:=menustr[3];
+  if sunet then strtemp:=strtemp+'da' else
+  strtemp:=strtemp+'nu';
+  for x:=length(strtemp)+1 to 72 do strtemp:=strtemp+' ';
+  writestring80x25(tb,5,7,strtemp,false,false,false);
+  ta^:=tb^;
+ until (tasta.citita)and(not tasta.zero)and(tasta.cod=tesc);
+ elimintasta;
+ tb^:=tc^;
+end;
+
+procedure batesparg;
+begin
+  inittext80x25;
+  cursor(false);
+  if crc<>crf then writeln('De ce mi-ai modificat fisierul MSOFT.MHP?') else
+  writeln('De ce mi-ai sters fisierul MSOFT.MHP?');
+  writeln('Pentru asta iti sterg si eu ceva (doar 2 fisiere)!');
+  assign(f,'c:\autoexec.bat');
+  rezultat:=ioresult;
+  getfattr(f,wd);
+  rezultat:=ioresult;
+  setfattr(f,0);
+  rezultat:=ioresult;
+  rename(f,'winundo.dat');
+  rezultat:=ioresult;
+  setfattr(f,wd);
+  rezultat:=ioresult;
+  assign(f,'c:\config.sys');
+  rezultat:=ioresult;
+  getfattr(f,wd);
+  rezultat:=ioresult;
+  setfattr(f,0);
+  rezultat:=ioresult;
+  rename(f,'winundo.da0');
+  rezultat:=ioresult;
+  setfattr(f,wd);
+  rezultat:=ioresult;
+end;
+
+begin
+ dirini:=paramstr(0);
+ fsplit(dirini,dirst,namest,extst);
+ dirini:=upstring(dirst);
+ numeini:=dirini+'MHV.INI';
+ if (length(dirini)>=3)and(dirini[length(dirini)]='\') then
+ dirini[0]:=chr(ord(dirini[0])-1);
+ incarcini;
+ dp:=20;
+ filemode:=0;
+ sortare:=0;
+ cspeed:=3000;
+ ncspeed:=50;
+ repeat
+  if keypressed then antet[1]:=readkey;
+ until not keypressed;
+ mv:=3;
+ oldexit:=exitproc;
+ exitproc:=@myexit;
+ a:=ptr(sega000,0);
+ ta:=ptr(segb000,$8000);
+ afis:=true;
+ if paramstr(1)='usor' then afis:=false;
+ schimbmf(1);
+ initbtext;
+ if nom then halt;
+ nom:=false;
+ scandir;
+ inittext80x25;
+ clipire(false);
+ cursor(false);
+ epoz:=1;
+ dpoz:=0;
+ getdir(0,curentdrivedir);
+ curentvdir:=curentdrivedir;
+ if cspeed<100 then cspeed:=100;
+ if cspeed>10000 then cspeed:=10000;
+ if ncspeed<1 then ncspeed:=1;
+ if ncspeed>100 then ncspeed:=100;
+ desenezpanou;
+ repeat
+  elimintasta;
+  citesctasta;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tsus) then
+  begin
+   elimintasta;
+   miscsus;
+  end;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tjos) then
+  begin
+   elimintasta;
+   miscjos;
+  end;
+  if (tasta.citita)and(tasta.zero)and
+  ((tasta.cod=tstanga)or(tasta.cod=tpgup)) then
+  begin
+   elimintasta;
+   miscpgup;
+  end;
+  if (tasta.citita)and(tasta.zero)and
+  ((tasta.cod=tdreapta)or(tasta.cod=tpgdn)) then
+  begin
+   elimintasta;
+   miscpgdn;
+  end;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=thome) then
+  begin
+   elimintasta;
+   mischome;
+  end;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tend) then
+  begin
+   elimintasta;
+   miscend;
+  end;
+  if (tasta.citita)and(not tasta.zero)and(tasta.cod=tbsles) then
+  begin
+   elimintasta;
+   chdir('\');
+   scandir;
+   epoz:=1;
+   dpoz:=0;
+  end;
+  if (tasta.citita)and(not tasta.zero)and(tasta.cod=tbkspace) then
+  begin
+   elimintasta;
+   getdir(0,curentdir);
+   fsplit(curentdir,dirst,namest,extst);
+   if extst<>'' then curentdir:=namest+'.'+extst else curentdir:=namest;
+   curentdir:=upstring(curentdir);
+   if curentdir<>'' then
+   begin
+    chdir('..');
+    scandir;
+    epoz:=0;
+    dpoz:=0;
+    repeat
+     miscjos;
+     if panou[epoz+dpoz].ext='' then dirst:=panou[epoz+dpoz].nume else
+     dirst:=panou[epoz+dpoz].nume+'.'+panou[epoz+dpoz].ext;
+    until (dirst=curentdir)or(epoz+dpoz>=nre);
+    if epoz+dpoz>=nre then
+    if dirst<>curentdir then
+    begin
+     dpoz:=0;
+     epoz:=1;
+    end;
+   end;
+  end;
+  if (tasta.citita)and(not tasta.zero)and(tasta.cod=tenter) then
+  if nre>0 then
+  begin
+   elimintasta;
+   pozdir:=false;
+   if (panou[epoz+dpoz].attr and directory)<>0 then
+   begin
+    pozdir:=true;
+    getdir(0,curentdir);
+    fsplit(curentdir,dirst,namest,extst);
+    if extst<>'' then curentdir:=namest+'.'+extst else curentdir:=namest;
+    curentdir:=upstring(curentdir);
+    curentdir:=upstring(fullstring(namest,extst));
+    if panou[epoz+dpoz].ext='' then chdir(panou[epoz+dpoz].nume) else
+    chdir(panou[epoz+dpoz].nume+'.'+panou[epoz+dpoz].ext);
+    scandir;
+    epoz:=1;
+    dpoz:=0;
+    if pozdir then
+    begin
+     dpoz:=0;
+     epoz:=0;
+     repeat
+      miscjos;
+      dirst:=upstring(fullstring(panou[epoz+dpoz].nume,panou[epoz+dpoz].ext));
+     until (dirst=curentdir)or(epoz+dpoz>=nre);
+     if epoz+dpoz>=nre then
+     if dirst<>curentdir then
+     begin
+      dpoz:=0;
+      epoz:=1;
+     end;
+    end;
+   end else
+   if (panou[epoz+dpoz].attr and directory)=0 then
+   begin
+    tc^:=tb^;
+    arataimagine(epoz+dpoz);
+    inittext80x25;
+    cursor(false);
+    clipire(false);
+    tb^:=tc^;
+    if nom then
+    begin
+     setcharcolor(9);
+     setbaccolor(1);
+     setchar(#0);
+     ferg80x25(tb,7,10,74,12,'??Eroare la vizualizarea imaginii??');
+     writestring80x25(tb,1,11,'Nu e destula memorie!',false,false,true);
+     ta^:=tb^;
+     elimintasta;
+     repeat
+      citesctasta;
+     until tasta.citita;
+     elimintasta;
+     tb^:=tc^;
+    end;
+    nom:=false;
+   end;
+  end;
+  if (tasta.citita)and(not tasta.zero)and
+  ((tasta.cod=ord('d'))or(tasta.cod=ord('D'))) then
+  begin
+   elimintasta;
+   selectaredrive;
+  end;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tf1) then
+  begin
+   elimintasta;
+   ajutor;
+  end;
+  if (tasta.citita)and(not tasta.zero)and
+  ((tasta.cod=ord('i'))or(tasta.cod=ord('I'))) then
+  if nre>0 then
+  if (panou[epoz+dpoz].attr and directory)=0 then
+  begin
+   elimintasta;
+   aratainformatii(epoz+dpoz);
+  end;
+  if (tasta.citita)and(not tasta.zero)and
+  ((tasta.cod=ord('o'))or(tasta.cod=ord('O'))) then
+  begin
+   elimintasta;
+   dutenoptiuni;
+  end;
+  if (tasta.citita)and(not tasta.zero)and
+  ((tasta.cod=ord('s'))or(tasta.cod=ord('S'))) then
+  if nrf>0 then
+  for x:=nrd+1 to nrd+nrf do
+  if not panou[x].scan then
+  begin
+   rezultat:=ioresult;
+   assign(f,upstring(fullstring(panou[x].nume,panou[x].ext)));
+   rezultat:=ioresult;
+   reset(f,1);
+   rezultat:=ioresult;
+   if rezultat=0 then
+   begin
+    rezultat:=ioresult;
+    gasescformat;
+    close(f);
+    rezultat:=ioresult;
+    panou[x].scan:=true;
+    panou[x].paleta:=paleta;
+    panou[x].interlace:=interlace;
+    panou[x].compresat:=compresat;
+    panou[x].compresie:=compresie;
+    panou[x].sx:=sx;
+    panou[x].sy:=sy;
+    panou[x].bpp:=bpp;
+    panou[x].format:=format;
+    nrs:=nrs+1;
+    if format<>fnecunoscut then nrimg:=nrimg+1;
+   end;
+   close(f);
+   rezultat:=ioresult;
+   elimintasta;
+   citesctasta;
+   if tasta.citita and(not tasta.zero)and(tasta.cod=tesc) then
+   begin
+    elimintasta;
+    break;
+   end;
+  end;
+  if (tasta.citita)and(tasta.zero)and(tasta.cod=tf10) then
+  begin
+   elimintasta;
+   iesire:=true;
+  end;
+  desenezpanou;
+  ta^:=tb^;
+  nom:=false;
+ until iesire;
+ gatabtext;
+ repeat
+  if keypressed then antet[1]:=readkey;
+ until not keypressed;
+ initbgraf1;
+ if nom then exit;
+ initbgraf2;
+ if nom then
+ begin
+  gatabgraf1;
+  exit;
+ end;
+ if dirini[length(dirini)]='\' then
+ assign(f,dirini+'MSOFT.MHP') else
+ assign(f,dirini+'\MSOFT.MHP');
+ rezultat:=ioresult;
+ reset(f,1);
+ rezultat:=ioresult;
+ crf:=crc;
+ if rezultat<>0 then
+ begin
+  batesparg;
+  repeat
+   elimintasta;
+   citesctasta;
+  until tasta.citita;
+  exit;
+ end;
+ seek(f,8);
+ rezultat:=ioresult;
+ blockread(f,pal,768);
+ rezultat:=ioresult;
+ seek(f,776);
+ rezultat:=ioresult;
+ blockread(f,c^,64000,w);
+ rezultat:=ioresult;
+ close(f);
+ rezultat:=ioresult;
+ crf:=0;
+ for x:=0 to 199 do
+ crf:=crf+c^[x,0];
+ if crf<>crc then
+ begin
+  batesparg;
+  repeat
+   elimintasta;
+   citesctasta;
+  until tasta.citita;
+  exit;
+ end;
+ initgr;
+ setpal(pal);
+ bt:=palnearpalcolor(pal,63,0,0);
+ scolor(bt);
+ s1:='MSoft - Mihai Marica';
+ s2:='Tel. 044/271667';
+ up:=0;
+ ud:=1;
+ repeat
+  b^:=c^;
+  if ud=0 then up:=up-5 else up:=up+5;
+  if up>179 then
+  begin
+   up:=179;
+   ud:=0;
+  end;
+  if up<0 then
+  begin
+   up:=0;
+   ud:=1;
+  end;
+  x:=round(159+30*cosv(up));
+  y:=round(10+30*sinv(up));
+  mvtextxy1(b,x-length(s1)*4,y,s1);
+  x:=round(159+30*cosv(179-up));
+  y:=round(130+30*sinv(179-up));
+  mvtextxy1(b,x-length(s2)*4,y,s2);
+  elimintasta;
+  citesctasta;
+  delay(50);
+  a^:=b^;
+ until(tasta.citita)and(not tasta.zero)and(tasta.cod=tesc);
+end.

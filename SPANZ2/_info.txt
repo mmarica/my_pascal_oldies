@@ -1,0 +1,7 @@
+Spanzuratoarea, versiunea 2.
+Data: 13 octombrie 2000
+
+Fisierul principal: SPANZ2.PAS
+
+Aparent neterminat (nu merge meniul de optiuni).
+
