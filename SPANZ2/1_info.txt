@@ -1,5 +1,6 @@
 Spanzuratoarea, versiunea 2.
 Data: 13 octombrie 2000
+Tip: joc
 
 Fisierul principal: SPANZ2.PAS
 
