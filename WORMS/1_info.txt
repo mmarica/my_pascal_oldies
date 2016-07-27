@@ -1,0 +1,8 @@
+Rama/Sarpele
+Data: 3 octombrie 2000
+Tip: joc
+
+Fisierul principal: WORMS.PAS
+
+
+
