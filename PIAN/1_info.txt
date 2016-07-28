@@ -1,0 +1,5 @@
+PIAN
+Data: 12 iulie 2000
+Tip: aplicatie
+
+Fisierul principal: PIANMH.PAS
