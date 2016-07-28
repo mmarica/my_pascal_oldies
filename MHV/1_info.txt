@@ -1,5 +1,5 @@
 MHViewer - viewer de imagini
 Data: 19 septembrie 2000
-Tip: aplictie
+Tip: aplicatie
 
 Fisierul principal: MHV.PAS

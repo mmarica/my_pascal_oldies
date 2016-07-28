@@ -1,0 +1,7 @@
+Sound maker
+Data: 12 iulie 2000
+Tip: aplicatie
+
+Fisierul principal: MHV.PAS
+
+Aparent nu face mai nimic, dar m-am chinuit un pic la interfata grafica :)
