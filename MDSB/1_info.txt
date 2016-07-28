@@ -1,0 +1,8 @@
+Ping pong 2D
+Data: 20 septembrie 2000
+Tip: joc
+
+Fisierul principal: MDSB.PAS
+
+Aparent neterminat.
+
