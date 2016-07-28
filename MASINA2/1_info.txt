@@ -1,0 +1,7 @@
+Simulator masina
+Data: 8 august 1998
+Tip: joc
+
+Fisierul principal: MASINA2.PAS
+
+Foarte rudimentar, evident neterminat.
