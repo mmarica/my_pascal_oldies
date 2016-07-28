@@ -1,0 +1,8 @@
+Clona Arkanoid (sau cel putin un inceput)
+Data: 19 iulie 2000
+Tip: joc
+
+Fisierul principal: MHSB.PAS
+
+ATENTIE: Sursa a avut cateva linii stricate pe care momentan le-am inlocuit cu niste begin/end-uri goale. In consecinta, cand ajunge bila la paleta, trece prin ea. Executabilul compilat deja nu sufera de aceasta problema.
+
