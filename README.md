@@ -19,7 +19,7 @@ You need to install DosBox, but don't worry, it is free!
 ####For Windows
 You can download it from the official site: https://www.dosbox.com. The latest version at this moment is 0.74 (august 2016). Installation is "next-next-next" :)
 
-Make a shortcut to DropBox which will load the custom config already included in the project. For me, the command executed by the shortcut looks like this:
+Make a shortcut to DosBox which will load the custom config already included in the project. For me, the command executed by the shortcut looks like this:
 
 ```
 "C:\Program Files (x86)\DOSBox-0.74\DOSBox.exe" -conf "C:\my_pascal_oldies\dosbox-0.74-windows.conf"
@@ -51,7 +51,7 @@ sudo apt-get install dosbox
 
 You need to make your own DosBox config starting from the default one created by your DosBox installation and just do to it what I did.
 
-I added commands to run at DropBox startup (replace PATH_TO_PROJECT with the actual path where you cloned the project, DOH!):
+I added commands to run at DosBox startup (replace PATH_TO_PROJECT with the actual path where you cloned the project, DOH!):
 
 ```
 [autoexec]
